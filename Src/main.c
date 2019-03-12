@@ -16,6 +16,9 @@
   *
   ******************************************************************************
   */
+
+#define TRAFFIC_LIGHTS_QTY 4
+
 /* USER CODE END Header */
 
 /* Includes ------------------------------------------------------------------*/
@@ -57,6 +60,87 @@ static void MX_GPIO_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+struct traffic_light {
+	uint16_t r, y, g;
+};
+
+struct FSM {
+	char *name;
+	void (*handler)(void);
+};
+
+enum FSM_states {
+	IDLE,
+	TRAFFIC_LIGHT_G,
+	TRAFFIC_LIGHT_Y
+};
+
+struct traffic_light lights[] = {
+		{s0_r_Pin, s0_y_Pin, s0_g_Pin},
+		{s1_r_Pin, s1_y_Pin, s1_g_Pin},
+		{s2_r_Pin, s2_y_Pin, s2_g_Pin},
+		{s3_r_Pin, s3_y_Pin, s3_g_Pin}
+};
+
+uint8_t curr_light;
+enum FSM_states curr_state;
+
+static void idle_handler(void) {
+	HAL_GPIO_WritePin(GPIOA, 0xFFFF, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(GPIOA,
+			lights[0].r |
+			lights[1].r |
+			lights[2].r |
+			lights[3].r,
+			GPIO_PIN_SET);
+
+	HAL_Delay(1000);
+
+	curr_state = TRAFFIC_LIGHT_G;
+	curr_light = 0;
+}
+
+static void traffic_light_g(void) {
+	HAL_GPIO_WritePin(GPIOA, lights[curr_light].r, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(GPIOA, lights[curr_light].g, GPIO_PIN_SET);
+
+	HAL_Delay(10000);
+
+	curr_state = TRAFFIC_LIGHT_Y;
+}
+
+static void traffic_light_y(void) {
+	HAL_GPIO_WritePin(GPIOA, lights[curr_light].g, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(GPIOA, lights[curr_light].y, GPIO_PIN_SET);
+
+	HAL_Delay(500);
+
+	HAL_GPIO_WritePin(GPIOA, lights[curr_light].y, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(GPIOA, lights[curr_light].r, GPIO_PIN_SET);
+
+	curr_state = TRAFFIC_LIGHT_G;
+
+	curr_light++;
+	if (curr_light > 3)
+		curr_light = 0;
+}
+
+static struct FSM states[] = {
+		{
+				.name = "IDLE",
+				.handler = idle_handler
+		},
+		{
+				.name = "TRAFFIC_LIGHT_G",
+				.handler = traffic_light_g
+		},
+		{
+				.name = "TRAFFIC_LIGHT_Y",
+				.handler = traffic_light_y
+		}
+};
+
+
 /* USER CODE END 0 */
 
 /**
@@ -89,6 +173,9 @@ int main(void)
   MX_GPIO_Init();
   /* USER CODE BEGIN 2 */
 
+  curr_light = 0;
+  curr_state = IDLE;
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -98,8 +185,8 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  HAL_Delay(1000);
-	  HAL_GPIO_TogglePin(GPIOA, 1 << 2);
+	  states[curr_state].handler();
+
   }
   /* USER CODE END 3 */
 }
@@ -128,7 +215,7 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
-  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV8;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
@@ -151,10 +238,16 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOA_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, s0_r_Pin|s0_y_Pin|s0_g_Pin|s1_r_Pin 
+                          |s1_y_Pin|s1_g_Pin|s2_r_Pin|s2_y_Pin 
+                          |s2_g_Pin|s3_r_Pin|s3_y_Pin|s3_g_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : PA2 */
-  GPIO_InitStruct.Pin = GPIO_PIN_2;
+  /*Configure GPIO pins : s0_r_Pin s0_y_Pin s0_g_Pin s1_r_Pin 
+                           s1_y_Pin s1_g_Pin s2_r_Pin s2_y_Pin 
+                           s2_g_Pin s3_r_Pin s3_y_Pin s3_g_Pin */
+  GPIO_InitStruct.Pin = s0_r_Pin|s0_y_Pin|s0_g_Pin|s1_r_Pin 
+                          |s1_y_Pin|s1_g_Pin|s2_r_Pin|s2_y_Pin 
+                          |s2_g_Pin|s3_r_Pin|s3_y_Pin|s3_g_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -163,7 +256,13 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+/*void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+	 check if the interrupt comes from TIM3
+    if (htim->Instance==TIM2) {
+    	HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_1);
+	}
+}*/
 /* USER CODE END 4 */
 
 /**
